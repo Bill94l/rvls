@@ -72,12 +72,13 @@ class DummyBackend() extends TraceBackend{
   override def newCpuMemoryView(viewId: Int, readIds: Long, writeIds: Long) = {}
   override def newCpu(hartId: Int, isa: String, priv: String, physWidth: Int, memoryViewId: Int) = {}
   override def loadElf(offset: Long, path: File) = {}
+  override def loadU32(address: Long, data: Int) = {}
   override def loadBin(offset: Long, path: File) = {}
   override def setPc(hartId: Int, pc: Long) = {}
   override def writeRf(hardId: Int, rfKind: Int, address: Int, data: Long) = {}
   override def readRf(hardId: Int, rfKind: Int, address: Int, data: Long) = {}
   override def commit(hartId: Int, pc: Long) = {}
-  override def trap(hartId: Int, interrupt: Boolean, code: Int) = {}
+  override def trap(hartId: Int, interrupt: Boolean, code: Int, fault_addr: Long) = {}
   override def ioAccess(hartId: Int, access: TraceIo) = {}
   override def setInterrupt(hartId: Int, intId: Int, value: Boolean) = {}
   override def addRegion(hartId: Int, kind : Int, base: Long, size: Long) = {}
@@ -105,8 +106,8 @@ class FileBackend(f : File) extends TraceBackend{
     log(f"rv commit $hartId $pc%016x\n")
   }
 
-  override def trap(hartId: Int, interrupt : Boolean, code : Int): Unit ={
-    log(f"rv trap $hartId ${interrupt.toInt} $code\n")
+  override def trap(hartId: Int, interrupt : Boolean, code : Int, fault_addr: Long): Unit ={
+    log(f"rv trap $hartId ${interrupt.toInt} $code $fault_addr%016x\n")
   }
 
   override def writeRf(hartId: Int, rfKind: Int, address: Int, data: Long) = {
@@ -127,6 +128,10 @@ class FileBackend(f : File) extends TraceBackend{
 
   override def addRegion(hartId: Int, kind: Int, base: Long, size: Long) = {
     log(f"rv region add $hartId $kind $base%016x $size%016x\n")
+  }
+
+  override def loadU32(address: Long, data: Int): Unit = {
+    log(f"U32 load  $address%016x $data")
   }
 
   override def loadElf(offset: Long, path: File) = {
@@ -194,6 +199,7 @@ class RvlsBackend(workspace : File = new File(".")) extends TraceBackend{
   override def newCpuMemoryView(viewId: Int, readIds: Long, writeIds: Long): Unit = Frontend.newCpuMemoryView(handle, viewId, readIds, writeIds)
   override def newCpu(hartId: Int, isa: String, priv: String, physWidth: Int, memoryViewId: Int): Unit = Frontend.newCpu(handle, hartId, isa, priv, physWidth, memoryViewId)
   override def loadElf(offset: Long, path: File): Unit = Frontend.loadElf(handle, offset, path.getAbsolutePath)
+  override def loadU32(address: Long, data: Int): Unit = Frontend.loadU32(handle, address, data)
   override def loadBin(offset: Long, path: File): Unit = Frontend.loadBin(handle, offset, path.getAbsolutePath)
   override def setPc(hartId: Int, pc: Long): Unit = Frontend.setPc(handle, hartId, pc)
   override def writeRf(hardId: Int, rfKind: Int, address: Int, data: Long): Unit = Frontend.writeRf(handle, hardId, rfKind, address, data)
@@ -201,9 +207,9 @@ class RvlsBackend(workspace : File = new File(".")) extends TraceBackend{
   override def commit(hartId: Int, pc: Long): Unit = if(!Frontend.commit(handle, hartId, pc)) {
     throw new Exception(Frontend.getLastErrorMessage(handle))
   }
-  override def trap(hartId: Int, interrupt: Boolean, code: Int): Unit = if(!Frontend.trap(handle, hartId, interrupt, code)) {
+  override def trap(hartId: Int, interrupt: Boolean, code: Int, fault_addr: Long): Unit = if(!Frontend.trap(handle, hartId, interrupt, code, fault_addr)){
     throw new Exception(Frontend.getLastErrorMessage(handle))
-  }
+  } 
   override def ioAccess(hartId: Int, access: TraceIo): Unit = Frontend.ioAccess(handle, hartId, access.write, access.address, access.data, access.mask, access.size, access.error)
   override def setInterrupt(hartId: Int, intId: Int, value: Boolean): Unit = Frontend.setInterrupt(handle, hartId, intId, value)
   override def addRegion(hartId: Int, kind: Int, base: Long, size: Long): Unit = Frontend.addRegion(handle, hartId, kind, base, size)
