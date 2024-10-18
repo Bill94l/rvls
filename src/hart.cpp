@@ -168,6 +168,11 @@ void Hart::writeRf(u32 rfKind, u32 address, u64 data){
         floatWriteData = data;
         break;
     case 4:
+//        if((csrAddress == CSR_FCSR || csrAddress == CSR_FRM || csrAddress == CSR_FFLAGS) && address == CSR_MSTATUS){
+//            fsDirty = true;
+//            fsCsrAddress = address;
+//            break;
+//        }
         if((csrWrite || csrRead) && csrAddress != address){
         	failure("duplicated CSR access \n");
         }
@@ -204,13 +209,31 @@ void Hart::physExtends(u64 &v){
     v = (u64)(((s64)v<<(64-physWidth)) >> (64-physWidth));
 }
 
-void Hart::trap(bool interrupt, u32 code){
+void Hart::trap(bool interrupt, u32 code, u64 address){
     int mask = 1 << code;
     auto fromPc = state->pc;
+    bool pageFault = !interrupt && (code == 12 || code == 13 || code == 15);
+    //printf("DUT did trap at tval: 0x%lx pc: %lx code %d\n", address, fromPc, code);
+     if(pageFault){
+        auto mmu = proc->get_mmu();
+        mmu->flush_tlb();
+        mmu->fault_fetch = code == 12;
+        mmu->fault_load  = code == 13;
+        mmu->fault_store = code == 15;
+        mmu->fault_address = address;
+    }
+
     if(interrupt) state->mip->write_with_mask(mask, mask);
     proc->step(1);
     if(interrupt) state->mip->write_with_mask(mask, 0);
+    if(pageFault){
+        auto mmu = proc->get_mmu();
+        mmu->fault_fetch = false;
+        mmu->fault_load  = false;
+        mmu->fault_store = false;
+    }
     if(!state->trap_happened){
+//        printf("DUT did trap on %lx Code %d\n", fromPc, code);
         failure("DUT did trap on %lx\n", fromPc);
     }
 
@@ -221,8 +244,9 @@ void Hart::trap(bool interrupt, u32 code){
 }
 
 void Hart::commit(u64 pc){
-	auto shift = 64-proc->get_xlen();
-    if(pc != (state->pc << shift >> shift)){
+	//auto shift = 64-proc->get_xlen();
+    //if(pc != (state->pc << shift >> shift)){
+    if(pc != state->pc ){
     	failure("PC MISSMATCH dut=%lx ref=%lx\n", pc, state->pc);
     }
 
@@ -277,7 +301,7 @@ void Hart::commit(u64 pc){
 
     //Checks
 //        printf("%016lx %08lx\n", pc, state->last_inst.bits());
-    assertTrue("DUT missed a trap", !state->trap_happened);
+    assertTrue("DUT missed a trap", !((u32)state->trap_happened));
     for (auto item : state->log_reg_write) {
         if (item.first == 0)
           continue;
@@ -304,11 +328,25 @@ void Hart::commit(u64 pc){
                 break;
             default:{
                 if((inst & 0x7F) == 0x73 && (inst & 0x3000) != 0){
+                    if((inst >> 20)==CSR_FCSR || (inst >> 20)==CSR_FRM || (inst >> 20)==CSR_FFLAGS){
+                        if(rd!=CSR_MSTATUS){
+                            assertTrue("CSR WRITE MISSING", csrWrite);
+                            assertEq("CSR WRITE ADDRESS", (u32)(csrAddress & 0xCFF), (u32)(rd & 0xCFF));
+        //                                                assertEq("CSR WRITE DATA", whitebox->robCtx[robId].csrWriteData, item.second.v[0]);
+                        }
+                        break;
+                    }
                     assertTrue("CSR WRITE MISSING", csrWrite);
                     assertEq("CSR WRITE ADDRESS", (u32)(csrAddress & 0xCFF), (u32)(rd & 0xCFF));
-//                                                assertEq("CSR WRITE DATA", whitebox->robCtx[robId].csrWriteData, item.second.v[0]);
+                    /*
+                    assertTrue("CSR WRITE MISSING", csrWrite || fsDirty);
+                    if(csrWrite){ assertEq("CSR WRITE ADDRESS", (u32)(csrAddress & 0xCFF), (u32)(rd & 0xCFF));
+                    }else if(fsDirty){
+                        assertEq("CSR WRITE ADDRESS", (u32)(fsCsrAddress & 0xCFF), (u32)(rd & 0xCFF));
+                        fsDirty = false;
+                    }
+                    */
                 }
-                break;
             }
 
             }
@@ -340,5 +378,6 @@ void Hart::scStatus(bool failure){
 }
 
 void Hart::addRegion(Region r){
+//    printf("Type: %d Base %lx Size %lx\n", r.type, r.base, r.size);
     sif->regions.push_back(r);
 }

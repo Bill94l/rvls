@@ -98,6 +98,10 @@ rvlsJni(loadBin), long offset, jstring path){
 	c->loadBin(toString(env, path), offset);
 }
 
+rvlsJni(loadU32), long address, int data){
+	c->loadU32(address, data);
+}
+
 rvlsJni(setPc), int hartId, long pc){
 	rv->setPc(pc);
 }
@@ -117,9 +121,10 @@ rvlsJniBool(commit), int hartId, long pc) {
 	}
 	return true;
 }
-rvlsJniBool(trap), int hartId, jboolean interrupt, int code) {
+
+rvlsJniBool(trap), int hartId, jboolean interrupt, int code, long address) {
 	try{
-		rv->trap(interrupt, code);
+		rv->trap(interrupt, code, address);
 	} catch (const std::exception &e) {
 		c->lastErrorMessage = e.what();
 	    return false;
