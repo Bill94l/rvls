@@ -96,8 +96,8 @@ public:
     u64 csrWriteData = 0;
     u64 csrReadData = 0;
 
-//    u32 fsCsrAddress = 0;
-//    bool fsDirty = false;
+    u32 fsCsrAddress = 0;
+    bool fsDirty = false;
 
     bool scValid = false;
     bool scFailure = false;
