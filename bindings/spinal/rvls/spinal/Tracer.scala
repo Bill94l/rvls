@@ -209,7 +209,7 @@ class RvlsBackend(workspace : File = new File(".")) extends TraceBackend{
   }
   override def trap(hartId: Int, interrupt: Boolean, code: Int, fault_addr: Long): Unit = if(!Frontend.trap(handle, hartId, interrupt, code, fault_addr)){
     throw new Exception(Frontend.getLastErrorMessage(handle))
-  } 
+  }
   override def ioAccess(hartId: Int, access: TraceIo): Unit = Frontend.ioAccess(handle, hartId, access.write, access.address, access.data, access.mask, access.size, access.error)
   override def setInterrupt(hartId: Int, intId: Int, value: Boolean): Unit = Frontend.setInterrupt(handle, hartId, intId, value)
   override def addRegion(hartId: Int, kind: Int, base: Long, size: Long): Unit = Frontend.addRegion(handle, hartId, kind, base, size)
